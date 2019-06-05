@@ -109,7 +109,8 @@ struct LintOrAnalyzeCommand {
             reason: "Number of warnings exceeded threshold of \(threshold).")
     }
 
-    private static func applyLeniency(options: LintOrAnalyzeOptions, violations: [StyleViolation]) -> [StyleViolation] {
+    private static func applyLeniency(options: LintOrAnalyzeOptions,
+                                      violations: [StyleViolation]) -> [StyleViolation] {
         if !options.lenient {
             return violations
         }

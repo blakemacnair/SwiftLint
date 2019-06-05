@@ -17,23 +17,28 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
         kind: .metrics,
         nonTriggeringExamples: [
             String(repeating: "/", count: 120) + "\n",
-            String(repeating: "#colorLiteral(red: 0.9607843161, green: 0.7058823705, blue: 0.200000003, alpha: 1)", count: 120) + "\n",
+            String(repeating: "#colorLiteral(red: 0.9607843161, green: 0.7058823705, blue: 0.200000003, alpha: 1)",
+                   count: 120) + "\n",
             String(repeating: "#imageLiteral(resourceName: \"image.jpg\")", count: 120) + "\n"
         ],
         triggeringExamples: [
             String(repeating: "/", count: 121) + "\n",
-            String(repeating: "#colorLiteral(red: 0.9607843161, green: 0.7058823705, blue: 0.200000003, alpha: 1)", count: 121) + "\n",
+            String(repeating: "#colorLiteral(red: 0.9607843161, green: 0.7058823705, blue: 0.200000003, alpha: 1)",
+                   count: 121) + "\n",
             String(repeating: "#imageLiteral(resourceName: \"image.jpg\")", count: 121) + "\n"
         ],
         corrections: [
-            "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String, val2: Bool, val3: (String, Bool)) { \n":
+            "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow("
+                + "val1: String, val2: Bool, val3: (String, Bool)) { \n":
             "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String,\n"
           + "                                                                                  val2: Bool,\n"
-          + "                                                                                  val3: (String, Bool)) {\n",
-            "    func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String, leValue val2: Bool, perperper val3: (String, Bool)) { \n":
+          + "                                                                                  val3: (String, Bool)) "
+                + "{\n",
+            "    func externalAndInternalNamingParametersBoiiiiiiiiiiii("
+                + "_ val1: String, leValue val2: Bool, perperper val3: (String, Bool)) { \n":
             "    func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String,\n"
           + "                                                           leValue val2: Bool,\n"
-          + "                                                           perperper val3: (String, Bool)) {\n",
+          + "                                                           perperper val3: (String, Bool)) {\n"
         ]
     )
 
@@ -97,12 +102,49 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
         }
     }
 
-    public func correct(file: File) -> [Correction] {
+    private func shouldCorrectLine(_ file: File, line: Line) -> Bool {
         let minValue = configuration.params.map({ $0.value }).min() ?? .max
         let swiftDeclarationKindsByLine = Lazy(file.swiftDeclarationKindsByLine() ?? [])
         let syntaxKindsByLine = Lazy(file.syntaxKindsByLine() ?? [])
-        let regexString = "(.*[a-zA-Z\\.]+\\(|[a-zA-Z ]{3,}+\\(|([\\S]+ ?[\\S]+: ([A-Za-z]+|\\({1,2}[^\\(^\\)]+\\){1,2}|\\[{1,2}[^\\[^\\]]+\\]{1,2})(, |\\) \\{.*|\\) \\-\\>.*|\\).*)))"
-        let regex = try! NSRegularExpression(pattern: regexString)
+
+        if line.range.length < minValue {
+            return false
+        }
+
+        guard lineHasKinds(line: line,
+                           kinds: functionKinds,
+                           kindsByLine: swiftDeclarationKindsByLine.value) else {
+                            return false
+        }
+
+        if file.ruleEnabled(violatingRanges: [line.range], for: self).isEmpty {
+            return false
+        }
+
+        if configuration.ignoresComments &&
+            lineHasKinds(line: line,
+                         kinds: commentKinds,
+                         kindsByLine: syntaxKindsByLine.value) &&
+            !lineHasKinds(line: line,
+                          kinds: nonCommentKinds,
+                          kindsByLine: syntaxKindsByLine.value) {
+            return false
+        }
+
+        if configuration.ignoresInterpolatedStrings &&
+            lineHasKinds(line: line,
+                         kinds: [.stringInterpolationAnchor],
+                         kindsByLine: syntaxKindsByLine.value) {
+            return false
+        }
+
+        return true
+    }
+
+    public func correct(file: File) -> [Correction] {
+        let regexString = "(.*[a-zA-Z\\.]+\\(|[a-zA-Z ]{3,}+\\(|([\\S]+ ?[\\S]+: ([A-Za-z]+|\\({1,2}[^\\(^\\)]+\\){1,2}"
+                            + "|\\[{1,2}[^\\[^\\]]+\\]{1,2})(, |\\) \\{.*|\\) \\-\\>.*|\\).*)))"
+        let regex = try? NSRegularExpression(pattern: regexString)
 
         var correctedLines = [String]()
         var corrections = [Correction]()
@@ -111,38 +153,7 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
             // `line.content.count` <= `line.range.length` is true.
             // So, `check line.range.length` is larger than minimum parameter value.
             // for avoiding using heavy `line.content.count`.
-            if line.range.length < minValue {
-                correctedLines.append(line.content)
-                continue
-            }
-
-            guard lineHasKinds(line: line,
-                               kinds: functionKinds,
-                               kindsByLine: swiftDeclarationKindsByLine.value) else {
-                                correctedLines.append(line.content)
-                                continue
-            }
-
-            if file.ruleEnabled(violatingRanges: [line.range], for: self).isEmpty {
-                correctedLines.append(line.content)
-                continue
-            }
-
-            if configuration.ignoresComments &&
-                lineHasKinds(line: line,
-                             kinds: commentKinds,
-                             kindsByLine: syntaxKindsByLine.value) &&
-                !lineHasKinds(line: line,
-                              kinds: nonCommentKinds,
-                              kindsByLine: syntaxKindsByLine.value) {
-                correctedLines.append(line.content)
-                continue
-            }
-
-            if configuration.ignoresInterpolatedStrings &&
-                lineHasKinds(line: line,
-                             kinds: [.stringInterpolationAnchor],
-                             kindsByLine: syntaxKindsByLine.value) {
+            guard shouldCorrectLine(file, line: line) else {
                 correctedLines.append(line.content)
                 continue
             }
@@ -150,7 +161,7 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
             var correctedLine = line.content
 
             // Split string into components based on function-splitting regex
-            var components = regex.matches(in: correctedLine, options: [], range: correctedLine.fullNSRange)
+            var components = (regex?.matches(in: correctedLine, options: [], range: correctedLine.fullNSRange) ?? [])
                 .map { $0.range }
                 .map { correctedLine.substring(from: $0.location, length: $0.length) }
                 .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -164,19 +175,17 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
             let preFunctionSpaces = line.content.countOfLeadingCharacters(in: .whitespaces)
             let totalIndent = preFunctionSpaces + functionBase.count
 
-            components = components
-                .map { comp -> String in
-                    // Don't want to add an extra newline at the end, or before the first parameter
-                    guard comp != functionBase else {
-                        return String(repeating: " ", count: preFunctionSpaces) + comp
-                    }
-                    guard comp != lastArgument else { return comp }
-                    return comp + "\n" + String(repeating: " ", count: totalIndent)
+            components = components.map { comp -> String in
+                // Don't want to add an extra newline at the end, or before the first parameter
+                guard comp != functionBase else {
+                    return String(repeating: " ", count: preFunctionSpaces) + comp
+                }
+                guard comp != lastArgument else { return comp }
+                return comp + "\n" + String(repeating: " ", count: totalIndent)
             }
 
             // Rejoin components to make the new corrected line OR do we need to make new Line objects?????
             correctedLine = components.joined()
-
 
             if line.content != correctedLine {
                 let description = type(of: self).description

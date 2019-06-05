@@ -11310,7 +11310,7 @@ var x = 0
 
 Identifier | Enabled by default | Supports autocorrection | Kind | Analyzer | Minimum Swift Compiler Version
 --- | --- | --- | --- | --- | ---
-`line_length` | Enabled | No | metrics | No | 3.0.0 
+`line_length` | Enabled | Yes | metrics | No | 3.0.0 
 
 Lines should not span too many characters.
 
