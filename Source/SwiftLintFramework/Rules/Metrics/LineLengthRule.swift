@@ -27,9 +27,13 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
         ],
         corrections: [
             "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String, val2: Bool, val3: (String, Bool)) { \n":
-            "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String,\nval2: Bool,\nval3: (String, Bool)) {\n",
-            "func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String, leValue val2: Bool, perperper val3: (String, Bool)) { \n":
-            "func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String,\nleValue val2: Bool,\nperperper val3: (String, Bool)) {\n",
+            "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String,\n"
+          + "                                                                                  val2: Bool,\n"
+          + "                                                                                  val3: (String, Bool)) {\n",
+            "    func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String, leValue val2: Bool, perperper val3: (String, Bool)) { \n":
+            "    func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String,\n"
+          + "                                                           leValue val2: Bool,\n"
+          + "                                                           perperper val3: (String, Bool)) {\n",
         ]
     )
 
@@ -94,7 +98,6 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
     }
 
     public func correct(file: File) -> [Correction] {
-        // TODO: Add corrections key to description with examples
         let minValue = configuration.params.map({ $0.value }).min() ?? .max
         let swiftDeclarationKindsByLine = Lazy(file.swiftDeclarationKindsByLine() ?? [])
         let syntaxKindsByLine = Lazy(file.syntaxKindsByLine() ?? [])
@@ -125,14 +128,6 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
                 continue
             }
 
-//            if configuration.ignoresFunctionDeclarations &&
-//                lineHasKinds(line: line,
-//                             kinds: functionKinds,
-//                             kindsByLine: swiftDeclarationKindsByLine.value) {
-//                correctedLines.append(line.content)
-//                continue
-//            }
-
             if configuration.ignoresComments &&
                 lineHasKinds(line: line,
                              kinds: commentKinds,
@@ -161,16 +156,22 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
                 .map { $0.trimmingCharacters(in: .whitespaces) }
 
             // Ignore single-parameter functions or zero-parameter functions
-            guard components.count > 2 else {
+            guard components.count > 2, let functionBase = components.first, let lastArgument = components.last else {
                 correctedLines.append(line.content)
                 continue
             }
 
+            let preFunctionSpaces = line.content.countOfLeadingCharacters(in: .whitespaces)
+            let totalIndent = preFunctionSpaces + functionBase.count
+
             components = components
                 .map { comp -> String in
                     // Don't want to add an extra newline at the end, or before the first parameter
-                    guard comp != components.last && comp != components.first else { return comp }
-                    return comp + "\n"
+                    guard comp != functionBase else {
+                        return String(repeating: " ", count: preFunctionSpaces) + comp
+                    }
+                    guard comp != lastArgument else { return comp }
+                    return comp + "\n" + String(repeating: " ", count: totalIndent)
             }
 
             // Rejoin components to make the new corrected line OR do we need to make new Line objects?????
