@@ -1,7 +1,7 @@
 import Foundation
 import SourceKittenFramework
 
-public struct LineLengthRule: ConfigurationProviderRule {
+public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
     public var configuration = LineLengthConfiguration(warning: 120, error: 200)
 
     public init() {}
@@ -24,6 +24,12 @@ public struct LineLengthRule: ConfigurationProviderRule {
             String(repeating: "/", count: 121) + "\n",
             String(repeating: "#colorLiteral(red: 0.9607843161, green: 0.7058823705, blue: 0.200000003, alpha: 1)", count: 121) + "\n",
             String(repeating: "#imageLiteral(resourceName: \"image.jpg\")", count: 121) + "\n"
+        ],
+        corrections: [
+            "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String, val2: Bool, val3: (String, Bool)) { \n":
+            "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String,\nval2: Bool,\nval3: (String, Bool)) { \n",
+            "func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String, leValue val2: Bool, perperper val3: (String, Bool)) { \n":
+            "func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String,\nleValue val2: Bool,\nperperper val3: (String, Bool)) { \n",
         ]
     )
 
@@ -85,6 +91,74 @@ public struct LineLengthRule: ConfigurationProviderRule {
             }
             return nil
         }
+    }
+
+    public func correct(file: File) -> [Correction] {
+        // TODO: Add corrections key to description with examples
+        let minValue = configuration.params.map({ $0.value }).min() ?? .max
+        let swiftDeclarationKindsByLine = Lazy(file.swiftDeclarationKindsByLine() ?? [])
+        let regexString = "(.*[a-zA-Z\\.]+\\(|[a-zA-Z ]{3,}+\\(|([\\S]+ ?[\\S]+: ([A-Za-z]+|\\({1,2}[^\\(^\\)]+\\){1,2}|\\[{1,2}[^\\[^\\]]+\\]{1,2})(, |\\) \\{.*|\\) \\-\\>.*|\\).*)))"
+        let regex = try! NSRegularExpression(pattern: regexString)
+
+        var correctedLines = [String]()
+        var corrections = [Correction]()
+
+        for line in file.lines {
+            // `line.content.count` <= `line.range.length` is true.
+            // So, `check line.range.length` is larger than minimum parameter value.
+            // for avoiding using heavy `line.content.count`.
+            if line.range.length < minValue {
+                correctedLines.append(line.content)
+                continue
+            }
+
+            var correctedLine = line.content
+
+            if lineHasKinds(line: line,
+                            kinds: functionKinds,
+                            kindsByLine: swiftDeclarationKindsByLine.value) {
+                guard !configuration.ignoresFunctionDeclarations else {
+                    correctedLines.append(line.content)
+                    continue
+                }
+
+                // Split string into components based on function-splitting regex
+                var components = regex.matches(in: correctedLine, options: [], range: correctedLine.fullNSRange)
+                    .map { $0.range }
+                    .map { correctedLine.substring(from: $0.location, length: $0.length) }
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+
+                // Ignore single-parameter functions or zero-parameter functions
+                guard components.count > 2 else {
+                    correctedLines.append(line.content)
+                    continue
+                }
+
+                components = components
+                    .map { comp -> String in
+                        guard comp != components.last else { return comp }
+                        return comp + "\n"
+                }
+
+                // Rejoin components to make the new corrected line OR do we need to make new Line objects?????
+                correctedLine = components.joined()
+            }
+
+            if line.content != correctedLine {
+                let description = type(of: self).description
+                let location = Location(file: file.path, line: line.index)
+                corrections.append(Correction(ruleDescription: description, location: location))
+            }
+            correctedLines.append(correctedLine)
+            continue
+        }
+
+        if !corrections.isEmpty {
+            // join and re-add trailing newline
+            file.write(correctedLines.joined(separator: "\n") + "\n")
+            return corrections
+        }
+        return []
     }
 
     /// Takes a string and replaces any literals specified by the `delimiter` parameter with `#`
