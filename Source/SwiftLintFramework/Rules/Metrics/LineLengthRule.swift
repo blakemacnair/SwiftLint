@@ -27,9 +27,9 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
         ],
         corrections: [
             "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String, val2: Bool, val3: (String, Bool)) { \n":
-            "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String,\nval2: Bool,\nval3: (String, Bool)) { \n",
+            "func thisIsAVeryStrangeFuncThatHasAReallySeriouslyStupidlyLongNameSoThatNowYaKnow(val1: String,\nval2: Bool,\nval3: (String, Bool)) {\n",
             "func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String, leValue val2: Bool, perperper val3: (String, Bool)) { \n":
-            "func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String,\nleValue val2: Bool,\nperperper val3: (String, Bool)) { \n",
+            "func externalAndInternalNamingParametersBoiiiiiiiiiiii(_ val1: String,\nleValue val2: Bool,\nperperper val3: (String, Bool)) {\n",
         ]
     )
 
@@ -97,6 +97,7 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
         // TODO: Add corrections key to description with examples
         let minValue = configuration.params.map({ $0.value }).min() ?? .max
         let swiftDeclarationKindsByLine = Lazy(file.swiftDeclarationKindsByLine() ?? [])
+        let syntaxKindsByLine = Lazy(file.syntaxKindsByLine() ?? [])
         let regexString = "(.*[a-zA-Z\\.]+\\(|[a-zA-Z ]{3,}+\\(|([\\S]+ ?[\\S]+: ([A-Za-z]+|\\({1,2}[^\\(^\\)]+\\){1,2}|\\[{1,2}[^\\[^\\]]+\\]{1,2})(, |\\) \\{.*|\\) \\-\\>.*|\\).*)))"
         let regex = try! NSRegularExpression(pattern: regexString)
 
@@ -108,6 +109,38 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
             // So, `check line.range.length` is larger than minimum parameter value.
             // for avoiding using heavy `line.content.count`.
             if line.range.length < minValue {
+                correctedLines.append(line.content)
+                continue
+            }
+
+            if file.ruleEnabled(violatingRanges: [line.range], for: self).isEmpty {
+                correctedLines.append(line.content)
+                continue
+            }
+
+            if configuration.ignoresComments &&
+                lineHasKinds(line: line,
+                             kinds: commentKinds,
+                             kindsByLine: syntaxKindsByLine.value) &&
+                !lineHasKinds(line: line,
+                              kinds: nonCommentKinds,
+                              kindsByLine: syntaxKindsByLine.value) {
+                correctedLines.append(line.content)
+                continue
+            }
+
+            if configuration.ignoresInterpolatedStrings &&
+                lineHasKinds(line: line,
+                             kinds: [.stringInterpolationAnchor],
+                             kindsByLine: syntaxKindsByLine.value) {
+                correctedLines.append(line.content)
+                continue
+            }
+
+            if configuration.ignoresFunctionDeclarations &&
+                lineHasKinds(line: line,
+                             kinds: functionKinds,
+                             kindsByLine: swiftDeclarationKindsByLine.value) {
                 correctedLines.append(line.content)
                 continue
             }
@@ -136,7 +169,8 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
 
                 components = components
                     .map { comp -> String in
-                        guard comp != components.last else { return comp }
+                        // Don't want to add an extra newline at the end, or before the first parameter
+                        guard comp != components.last && comp != components.first else { return comp }
                         return comp + "\n"
                 }
 
