@@ -113,10 +113,25 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
                 continue
             }
 
+            guard lineHasKinds(line: line,
+                               kinds: functionKinds,
+                               kindsByLine: swiftDeclarationKindsByLine.value) else {
+                                correctedLines.append(line.content)
+                                continue
+            }
+
             if file.ruleEnabled(violatingRanges: [line.range], for: self).isEmpty {
                 correctedLines.append(line.content)
                 continue
             }
+
+//            if configuration.ignoresFunctionDeclarations &&
+//                lineHasKinds(line: line,
+//                             kinds: functionKinds,
+//                             kindsByLine: swiftDeclarationKindsByLine.value) {
+//                correctedLines.append(line.content)
+//                continue
+//            }
 
             if configuration.ignoresComments &&
                 lineHasKinds(line: line,
@@ -137,46 +152,30 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
                 continue
             }
 
-            if configuration.ignoresFunctionDeclarations &&
-                lineHasKinds(line: line,
-                             kinds: functionKinds,
-                             kindsByLine: swiftDeclarationKindsByLine.value) {
+            var correctedLine = line.content
+
+            // Split string into components based on function-splitting regex
+            var components = regex.matches(in: correctedLine, options: [], range: correctedLine.fullNSRange)
+                .map { $0.range }
+                .map { correctedLine.substring(from: $0.location, length: $0.length) }
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+
+            // Ignore single-parameter functions or zero-parameter functions
+            guard components.count > 2 else {
                 correctedLines.append(line.content)
                 continue
             }
 
-            var correctedLine = line.content
-
-            if lineHasKinds(line: line,
-                            kinds: functionKinds,
-                            kindsByLine: swiftDeclarationKindsByLine.value) {
-                guard !configuration.ignoresFunctionDeclarations else {
-                    correctedLines.append(line.content)
-                    continue
-                }
-
-                // Split string into components based on function-splitting regex
-                var components = regex.matches(in: correctedLine, options: [], range: correctedLine.fullNSRange)
-                    .map { $0.range }
-                    .map { correctedLine.substring(from: $0.location, length: $0.length) }
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-
-                // Ignore single-parameter functions or zero-parameter functions
-                guard components.count > 2 else {
-                    correctedLines.append(line.content)
-                    continue
-                }
-
-                components = components
-                    .map { comp -> String in
-                        // Don't want to add an extra newline at the end, or before the first parameter
-                        guard comp != components.last && comp != components.first else { return comp }
-                        return comp + "\n"
-                }
-
-                // Rejoin components to make the new corrected line OR do we need to make new Line objects?????
-                correctedLine = components.joined()
+            components = components
+                .map { comp -> String in
+                    // Don't want to add an extra newline at the end, or before the first parameter
+                    guard comp != components.last && comp != components.first else { return comp }
+                    return comp + "\n"
             }
+
+            // Rejoin components to make the new corrected line OR do we need to make new Line objects?????
+            correctedLine = components.joined()
+
 
             if line.content != correctedLine {
                 let description = type(of: self).description
