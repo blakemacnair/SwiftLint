@@ -2,6 +2,10 @@ import Foundation
 import SourceKittenFramework
 
 public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
+    private let regexString = "(^.*?\\(|[a-zA-Z ]{3,}+\\(|(([\\S]*?\\ ?[\\S]*(\\:\\ )?)(([\\w]+)|(\\([^\\(\\)]+\\))"
+        + "|(\\[[^\\[\\]]*\\](\\(\\))?)|\\{\\ .*?\\ ?\\}|\\[\\w+\\:\\ \\w+\\])?\\??(\\ \\=\\ (\\#?[\\w]+|(\\([^\\(\\)]"
+        + "+\\))|(\\[{1,2}[^\\[\\]]*\\]{1,2}(\\(\\))?)|([\\w]+(\\([\\w\\:\\ ]*?\\))??\\.)?(\\.?([\\w]+(\\([\\w\\:\\ ]"
+        + "*?\\))??))*?|\\\".*\\\"))?((\\,\\ )|(\\,\\ ?$|\\)\\ \\{.*)|(\\)\\ (\\-\\>.*\\{?.*$)?)|(\\).*))))"
     public var configuration = LineLengthConfiguration(warning: 120, error: 200)
 
     public init() {}
@@ -142,9 +146,13 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
     }
 
     public func correct(file: File) -> [Correction] {
-        let regexString = "(.*[a-zA-Z\\.]+\\(|[a-zA-Z ]{3,}+\\(|([\\S]+ ?[\\S]+: ([A-Za-z]+|\\({1,2}[^\\(^\\)]+\\){1,2}"
-                            + "|\\[{1,2}[^\\[^\\]]+\\]{1,2})(, |\\) \\{.*|\\) \\-\\>.*|\\).*)))"
-        let regex = try? NSRegularExpression(pattern: regexString)
+        let regex: NSRegularExpression
+        do {
+            regex = try NSRegularExpression(pattern: regexString)
+        } catch {
+            assertionFailure(error.localizedDescription)
+            return []
+        }
 
         var correctedLines = [String]()
         var corrections = [Correction]()
@@ -161,7 +169,7 @@ public struct LineLengthRule: CorrectableRule, ConfigurationProviderRule {
             var correctedLine = line.content
 
             // Split string into components based on function-splitting regex
-            var components = (regex?.matches(in: correctedLine, options: [], range: correctedLine.fullNSRange) ?? [])
+            var components = regex.matches(in: correctedLine, options: [], range: correctedLine.fullNSRange)
                 .map { $0.range }
                 .map { correctedLine.substring(from: $0.location, length: $0.length) }
                 .map { $0.trimmingCharacters(in: .whitespaces) }

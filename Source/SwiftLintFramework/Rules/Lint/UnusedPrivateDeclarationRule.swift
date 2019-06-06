@@ -146,7 +146,8 @@ private extension File {
         return nil
     }
 
-    private static func aclAtOffset(_ offset: Int64, substructureElement: [String: SourceKitRepresentable]) -> String? {
+    private static func aclAtOffset(_ offset: Int64,
+                                    substructureElement: [String: SourceKitRepresentable]) -> String? {
         if let nameOffset = substructureElement["key.nameoffset"] as? Int64,
             nameOffset == offset,
             let acl = substructureElement["key.accessibility"] as? String {

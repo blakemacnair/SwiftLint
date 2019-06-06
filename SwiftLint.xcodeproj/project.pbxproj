@@ -1859,7 +1859,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = ". script/extract-tool";
+			shellScript = ". script/extract-tool\n";
 		};
 		D4F5851220E999C40085C6D8 /* Update Tests/SwiftLintFrameworkTests/AutomaticRuleTests.generated.swift */ = {
 			isa = PBXShellScriptBuildPhase;
