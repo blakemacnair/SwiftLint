@@ -1,0 +1,7 @@
+# All rules are available at https://github.com/realm/SwiftLint/blob/master/Rules.md
+# To run autocorrect with this configuration file, run `swiftlint autocorrect --config autocorrect.yml`
+
+whitelist_rules:
+  - line_length:
+    - warning: 150
+    - error: 150

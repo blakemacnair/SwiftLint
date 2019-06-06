@@ -88,7 +88,15 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "lint --no-cache"
+            argument = "autocorrect --no-cache"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "--path ${PROJECT_DIR}/../chedda-ios/CheddaTests"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "--config ${PROJECT_DIR}/autocorrect.yml"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
